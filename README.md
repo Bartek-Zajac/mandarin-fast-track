@@ -16,20 +16,30 @@ A lightweight Mandarin learning app focused on useful Chinese: high-frequency ch
 - Adaptive pinyin mode so familiar cards can be practiced without romanization
 - Progress dashboard for streak, core mastery, listening accuracy, tone accuracy, production attempts, and characters explored
 - Exportable local progress JSON
-- Mandarin pronunciation through the browser Speech Synthesis API
+- Azure Neural Text-to-Speech on Vercel, with automatic browser Speech Synthesis fallback
 - Responsive, dependency-free HTML/CSS/JavaScript
 
 ## Progress storage
 
-Study progress is currently stored in `localStorage` in the browser. That means it persists between sessions on the same browser/device, with no account or backend required. A future cloud-sync version can move this state to a database/user account while keeping the same learning model.
+Study progress is currently stored in `localStorage` under the stable key `mandarin-fast-track-v2`. Normal code deployments do not wipe it. This means progress persists between sessions on the same browser/device. Exportable progress JSON provides an additional manual backup. A future cloud-sync version can move this state to a database/user account while preserving the same SRS history.
 
 ## Run locally
 
-Because the app has no build step, you can open `index.html` directly or serve the directory with any static HTTP server.
+The frontend has no build step. You can serve the repository with any static HTTP server. When the Vercel `/api/speech` function is unavailable locally, pronunciation automatically falls back to the browser's Mandarin speech-synthesis voice.
 
 ## Deploy on Vercel
 
-Import this GitHub repository into Vercel. It is a static site and requires no framework preset or build command. Vercel can serve the repository root directly.
+Import this GitHub repository into Vercel. The frontend requires no build command. The `api/speech.js` file is deployed as a Vercel Function.
+
+For the higher-quality Mandarin neural voice, create an Azure Speech resource and add these Vercel Environment Variables:
+
+- `AZURE_SPEECH_KEY` — your Azure Speech resource key
+- `AZURE_SPEECH_REGION` — the resource region, for example `eastus`
+- `AZURE_SPEECH_VOICE` — optional; defaults to `zh-CN-XiaoxiaoNeural`
+
+Add the variables in Vercel Project Settings → Environment Variables and redeploy the project. Never put the Azure key into `app.js`, `audio.js`, GitHub, or other browser-visible code.
+
+If Azure is missing, temporarily unavailable, or returns an error, the app automatically falls back to the device's browser Mandarin voice.
 
 Once Git integration is enabled, pushes to the production branch can automatically create new deployments.
 
@@ -37,4 +47,4 @@ Once Git integration is enabled, pushes to the production branch can automatical
 
 The 1,000+ bank is useful for recognition/exploration, while the richer SRS cards currently cover the smaller curated core deck. The next major content upgrade is to turn the bank into a rigorously frequency-ranked **Core 1000** where every entry has validated pinyin (including alternate readings where relevant), meaning, common vocabulary, useful example sentences, and learning metadata.
 
-Other strong future upgrades include native-recorded audio, tone-sandhi lessons, handwriting/stroke order, richer sentence levels, cloud sync, and optional speech-recognition feedback.
+Other strong future upgrades include tone-sandhi lessons, handwriting/stroke order, richer sentence levels, cloud sync, and optional speech-recognition feedback.
