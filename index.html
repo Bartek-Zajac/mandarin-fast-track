@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <meta name="description" content="A frequency-first Mandarin learning app for useful characters, sentences, tones, and pronunciation." />
+  <title>Mandarin Fast Track</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">MANDARIN FAST TRACK</p>
+        <h1>Useful Chinese, learned fast.</h1>
+        <p class="lede">Frequency-first characters, practical sentences, tone training, and mistake-weighted review.</p>
+      </div>
+      <div class="stats" aria-live="polite">
+        <strong id="masteredCount">0</strong>
+        <span>mastered this session</span>
+        <small id="reviewCount">0 marked for review</small>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Study modes">
+      <button class="tab active" data-view="learn">Learn</button>
+      <button class="tab" data-view="sentences">Sentences</button>
+      <button class="tab" data-view="tones">Tones</button>
+      <button class="tab" data-view="bank">1000+ Bank</button>
+    </nav>
+
+    <section id="learn" class="view active-view">
+      <article class="study-card">
+        <div class="card-topline"><span id="rankLabel">Core character</span><button id="speakCharacter" class="ghost">🔊 Hear it</button></div>
+        <div id="character" class="character">我</div>
+        <div id="pinyin" class="pinyin">wǒ</div>
+        <div id="meaning" class="meaning">I; me</div>
+        <div id="example" class="example"></div>
+        <div class="actions">
+          <button id="againButton" class="secondary">Again</button>
+          <button id="knowButton" class="primary">Know it ✓</button>
+        </div>
+      </article>
+      <aside class="tip"><strong>Fast loop:</strong> see → say aloud → hear → copy once → recall the example. Cards marked “Again” come back sooner.</aside>
+    </section>
+
+    <section id="sentences" class="view" hidden>
+      <article class="study-card sentence-card">
+        <div class="card-topline"><span id="sentenceNumber">Sentence 1</span><button id="speakSentence" class="ghost">🔊 Listen</button></div>
+        <div id="sentenceChinese" class="sentence-chinese"></div>
+        <button id="revealSentence" class="secondary full">Reveal pinyin + meaning</button>
+        <div id="sentenceAnswer" class="sentence-answer" hidden>
+          <div id="sentencePinyin" class="pinyin sentence-pinyin"></div>
+          <div id="sentenceEnglish" class="meaning"></div>
+        </div>
+        <div class="actions split">
+          <button id="previousSentence" class="secondary">← Previous</button>
+          <button id="nextSentence" class="primary">Next →</button>
+        </div>
+      </article>
+      <aside class="tip">Try to understand the Chinese before revealing English. Shadow each sentence three times: listen → speak with audio → speak alone.</aside>
+    </section>
+
+    <section id="tones" class="view" hidden>
+      <article class="tone-panel">
+        <h2>Hear the four Mandarin tones</h2>
+        <div class="tone-grid">
+          <button class="tone-card" data-tone="妈"><b>妈</b><span>mā · 1st</span><small>high & level</small></button>
+          <button class="tone-card" data-tone="麻"><b>麻</b><span>má · 2nd</span><small>rising</small></button>
+          <button class="tone-card" data-tone="马"><b>马</b><span>mǎ · 3rd</span><small>low / dipping</small></button>
+          <button class="tone-card" data-tone="骂"><b>骂</b><span>mà · 4th</span><small>sharp falling</small></button>
+        </div>
+        <p class="neutral-note"><strong>Neutral tone:</strong> 妈妈 <span>māma</span> — the second syllable is lighter and unstressed.</p>
+      </article>
+    </section>
+
+    <section id="bank" class="view" hidden>
+      <div class="bank-header">
+        <div><h2>Character bank</h2><p id="bankCount"></p></div>
+        <input id="characterSearch" type="search" placeholder="Search a character, e.g. 学" aria-label="Search character bank" />
+      </div>
+      <div id="characterGrid" class="character-grid"></div>
+      <p class="bank-note">Tap any character to hear it. Don’t try to memorize all 1,000 at once—master the first few hundred in context first.</p>
+    </section>
+  </main>
+  <script src="./app.js" defer></script>
+</body>
+</html>
