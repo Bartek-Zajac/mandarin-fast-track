@@ -16,7 +16,7 @@ A lightweight Mandarin learning app focused on useful Chinese: high-frequency ch
 - Adaptive pinyin mode so familiar cards can be practiced without romanization
 - Progress dashboard for streak, core mastery, listening accuracy, tone accuracy, production attempts, and characters explored
 - Exportable local progress JSON
-- Azure Neural Text-to-Speech on Vercel, with automatic browser Speech Synthesis fallback
+- ElevenLabs Text-to-Speech on Vercel, with automatic browser Speech Synthesis fallback
 - Responsive, dependency-free HTML/CSS/JavaScript
 
 ## Progress storage
@@ -31,15 +31,15 @@ The frontend has no build step. You can serve the repository with any static HTT
 
 Import this GitHub repository into Vercel. The frontend requires no build command. The `api/speech.js` file is deployed as a Vercel Function.
 
-For the higher-quality Mandarin neural voice, create an Azure Speech resource and add these Vercel Environment Variables:
+For higher-quality Mandarin pronunciation, add these Vercel Environment Variables:
 
-- `AZURE_SPEECH_KEY` — your Azure Speech resource key
-- `AZURE_SPEECH_REGION` — the resource region, for example `eastus`
-- `AZURE_SPEECH_VOICE` — optional; defaults to `zh-CN-XiaoxiaoNeural`
+- `ELEVENLABS_API_KEY` — your ElevenLabs API key
+- `ELEVENLABS_VOICE_ID` — the Voice ID copied from ElevenLabs My Voices
+- `ELEVENLABS_MODEL_ID` — optional; defaults to `eleven_multilingual_v2`
 
-Add the variables in Vercel Project Settings → Environment Variables and redeploy the project. Never put the Azure key into `app.js`, `audio.js`, GitHub, or other browser-visible code.
+In ElevenLabs, choose a voice you like in My Voices, open its More actions menu, and copy the Voice ID. Add the variables in Vercel Project Settings → Environment Variables and redeploy the project.
 
-If Azure is missing, temporarily unavailable, or returns an error, the app automatically falls back to the device's browser Mandarin voice.
+Never put the ElevenLabs API key into `app.js`, `audio.js`, GitHub, or other browser-visible code. If ElevenLabs is missing, temporarily unavailable, or returns an error, the app automatically falls back to the device's browser Mandarin voice.
 
 Once Git integration is enabled, pushes to the production branch can automatically create new deployments.
 
