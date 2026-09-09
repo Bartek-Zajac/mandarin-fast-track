@@ -1,26 +1,17 @@
 const MAX_TEXT_LENGTH = 800;
 
-function escapeXml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const key = process.env.AZURE_SPEECH_KEY;
-  const region = process.env.AZURE_SPEECH_REGION;
-  const voice = process.env.AZURE_SPEECH_VOICE || 'zh-CN-XiaoxiaoNeural';
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID;
+  const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
 
-  if (!key || !region) {
-    return res.status(503).json({ error: 'Azure Speech is not configured' });
+  if (!apiKey || !voiceId) {
+    return res.status(503).json({ error: 'ElevenLabs speech is not configured' });
   }
 
   const text = String(req.body?.text || '').trim();
@@ -29,30 +20,37 @@ export default async function handler(req, res) {
     return res.status(413).json({ error: `Text must be ${MAX_TEXT_LENGTH} characters or fewer` });
   }
 
-  const ssml = `<?xml version="1.0" encoding="UTF-8"?>\n<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="zh-CN"><voice name="${escapeXml(voice)}"><prosody rate="-8%">${escapeXml(text)}</prosody></voice></speak>`;
-
   try {
-    const azureResponse = await fetch(
-      `https://${encodeURIComponent(region)}.tts.speech.microsoft.com/cognitiveservices/v1`,
+    const elevenResponse = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
       {
         method: 'POST',
         headers: {
-          'Ocp-Apim-Subscription-Key': key,
-          'Content-Type': 'application/ssml+xml',
-          'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
-          'User-Agent': 'mandarin-fast-track'
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg'
         },
-        body: ssml
+        body: JSON.stringify({
+          text,
+          model_id: modelId,
+          voice_settings: {
+            stability: 0.55,
+            similarity_boost: 0.75,
+            style: 0,
+            use_speaker_boost: true,
+            speed: 0.92
+          }
+        })
       }
     );
 
-    if (!azureResponse.ok) {
-      const details = await azureResponse.text();
-      console.error('Azure Speech error:', azureResponse.status, details);
+    if (!elevenResponse.ok) {
+      const details = await elevenResponse.text();
+      console.error('ElevenLabs Speech error:', elevenResponse.status, details);
       return res.status(502).json({ error: 'Speech generation failed' });
     }
 
-    const audio = Buffer.from(await azureResponse.arrayBuffer());
+    const audio = Buffer.from(await elevenResponse.arrayBuffer());
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400');
     return res.status(200).send(audio);
