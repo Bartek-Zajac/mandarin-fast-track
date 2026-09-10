@@ -4,10 +4,13 @@ A lightweight Mandarin learning app focused on useful Chinese: high-frequency ch
 
 ## Current features
 
-- 1,000+ unique Chinese character bank
-- Detailed frequency-first core character deck with pinyin, meanings, and example words/phrases
+- Generated **Core 1000 frequency dataset** based on HanziDB / Jun Da ordering
+- Up to four common HSK vocabulary examples per Core 1000 character when available
+- Existing hand-curated character cards preserved and preferred over generated fallback cards
+- 1,000+ unique Chinese character bank for recognition/exploration
 - Persistent browser-based spaced repetition with **Again / Hard / Good / Easy** scheduling
-- A daily-study entry point designed around a short, focused session
+- Daily queue that deliberately mixes due reviews with new material instead of endlessly cycling old cards
+- Eight-new-card daily target, with reviews interleaved roughly 2:1 with new cards
 - Practical Mandarin sentence drills with audio
 - Hidden-text listening quizzes
 - Sentence production practice from English to Chinese
@@ -21,7 +24,28 @@ A lightweight Mandarin learning app focused on useful Chinese: high-frequency ch
 
 ## Progress storage
 
-Study progress is currently stored in `localStorage` under the stable key `mandarin-fast-track-v2`. Normal code deployments do not wipe it. This means progress persists between sessions on the same browser/device. Exportable progress JSON provides an additional manual backup. A future cloud-sync version can move this state to a database/user account while preserving the same SRS history.
+Study progress is stored in `localStorage` under the stable key `mandarin-fast-track-v2`.
+
+The SRS state now uses stable character IDs such as `char:我` instead of depending on array positions. Existing numeric-index progress is automatically migrated to the stable-ID schema, and the previous stored JSON is copied to `mandarin-fast-track-v2-backup` before replacement. This means future Core dataset additions or reordering can be made without silently attaching your old learning history to the wrong character.
+
+Normal GitHub/Vercel deployments do not wipe progress. Progress is still browser/device-local, so clearing site data or switching devices can lose it; use **Export progress JSON** as an additional manual backup until account/cloud sync is added.
+
+## Core 1000 data
+
+`core1000-data.js` is generated reproducibly by `scripts/build_core1000.py`.
+
+The build combines:
+
+- **HanziDB.csv / Jun Da frequency list** for the top-1,000 simplified-character ordering, pinyin and concise character definitions.
+- **complete-hsk-vocabulary** for common HSK words, their pinyin and meanings.
+
+The generator selects up to four useful vocabulary items containing each character, preferring lower HSK levels and higher-frequency words. Hand-curated cards already present in the app remain in place; generated data fills missing Core 1000 characters rather than replacing those cards.
+
+The GitHub Actions workflow `.github/workflows/build-core1000.yml` can rebuild the generated dataset from its sources and commit the result automatically.
+
+### Content-quality note
+
+The frequency-ranked 1,000-character foundation and common-word metadata are now present. The remaining editorial improvement is deeper manual curation: validating secondary readings in context, replacing weaker dictionary senses, and adding a genuinely useful bespoke sentence for every one of the 1,000 characters. Generated dictionary/HSK data is useful scaffolding, but it should not be treated as a substitute for that final linguistic review.
 
 ## Run locally
 
@@ -37,14 +61,12 @@ For higher-quality Mandarin pronunciation, add these Vercel Environment Variable
 - `ELEVENLABS_VOICE_ID` — the Voice ID copied from ElevenLabs My Voices
 - `ELEVENLABS_MODEL_ID` — optional; defaults to `eleven_multilingual_v2`
 
-In ElevenLabs, choose a voice you like in My Voices, open its More actions menu, and copy the Voice ID. Add the variables in Vercel Project Settings → Environment Variables and redeploy the project.
+Never put the ElevenLabs API key into browser-visible code or GitHub. If ElevenLabs is missing, unavailable, out of quota, or rejects the selected voice, the app automatically falls back to the device's browser Mandarin voice.
 
-Never put the ElevenLabs API key into `app.js`, `audio.js`, GitHub, or other browser-visible code. If ElevenLabs is missing, temporarily unavailable, or returns an error, the app automatically falls back to the device's browser Mandarin voice.
+## Data attribution
 
-Once Git integration is enabled, pushes to the production branch can automatically create new deployments.
+The generated Core 1000 uses open-source data from `ruddfawcett/hanziDB.csv` and `drkameleon/complete-hsk-vocabulary`. Their source repositories and licenses should be reviewed when redistributing derivative datasets. The build script records the exact upstream URLs so the dataset remains reproducible and auditable.
 
-## Content quality roadmap
+## Next improvements
 
-The 1,000+ bank is useful for recognition/exploration, while the richer SRS cards currently cover the smaller curated core deck. The next major content upgrade is to turn the bank into a rigorously frequency-ranked **Core 1000** where every entry has validated pinyin (including alternate readings where relevant), meaning, common vocabulary, useful example sentences, and learning metadata.
-
-Other strong future upgrades include tone-sandhi lessons, handwriting/stroke order, richer sentence levels, cloud sync, and optional speech-recognition feedback.
+Strong next upgrades are manual Core 1000 sentence/readings review, tone-sandhi lessons, handwriting/stroke order, richer sentence levels, cloud sync, and optional speech-recognition feedback.
