@@ -1,23 +1,68 @@
 const STORAGE_KEY = 'mandarin-fast-track-v2';
+const BACKUP_KEY = `${STORAGE_KEY}-backup`;
+const SCHEMA_VERSION = 3;
 const DAY = 24 * 60 * 60 * 1000;
+const DAILY_NEW_LIMIT = 8;
+const DAILY_REVIEW_LIMIT = 32;
 
 const defaultState = () => ({
+  schemaVersion: SCHEMA_VERSION,
   cards: {},
   streak: { lastDay: null, count: 0 },
   listening: { correct: 0, total: 0 },
   tones: { correct: 0, total: 0 },
   production: 0,
   explored: [],
-  dailyStarts: 0
+  dailyStarts: 0,
+  dailyNew: { date: null, count: 0 }
 });
 
+const defaultCard = () => ({ reps: 0, interval: 0, ease: 2.5, due: 0, lapses: 0, last: null });
+const cardId = index => core[index]?.[0] ? `char:${core[index][0]}` : `index:${index}`;
+
+function mergeCard(a, b) {
+  if (!a) return { ...defaultCard(), ...b };
+  if (!b) return { ...defaultCard(), ...a };
+  const score = card => (card.reps || 0) * 1000000 + (card.interval || 0) * 1000 + (card.last || 0) / 1e12;
+  return score(b) >= score(a) ? { ...defaultCard(), ...b } : { ...defaultCard(), ...a };
+}
+
+function migrateState(saved) {
+  const base = defaultState();
+  const nextCards = {};
+  Object.entries(saved?.cards || {}).forEach(([key, value]) => {
+    let stableKey = key;
+    if (/^\d+$/.test(key)) {
+      const legacyIndex = Number(key);
+      stableKey = core[legacyIndex]?.[0] ? `char:${core[legacyIndex][0]}` : `legacy-index:${key}`;
+    } else if (/^[\u3400-\u9fff]$/.test(key)) {
+      stableKey = `char:${key}`;
+    }
+    nextCards[stableKey] = mergeCard(nextCards[stableKey], value);
+  });
+
+  return {
+    ...base,
+    ...(saved || {}),
+    schemaVersion: SCHEMA_VERSION,
+    cards: nextCards,
+    streak: { ...base.streak, ...(saved?.streak || {}) },
+    listening: { ...base.listening, ...(saved?.listening || {}) },
+    tones: { ...base.tones, ...(saved?.tones || {}) },
+    dailyNew: { ...base.dailyNew, ...(saved?.dailyNew || {}) },
+    explored: Array.isArray(saved?.explored) ? saved.explored : []
+  };
+}
+
+function parseStored(raw) {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return { ...defaultState(), ...(saved || {}), cards: saved?.cards || {}, streak: { ...defaultState().streak, ...(saved?.streak || {}) }, listening: { ...defaultState().listening, ...(saved?.listening || {}) }, tones: { ...defaultState().tones, ...(saved?.tones || {}) }, explored: Array.isArray(saved?.explored) ? saved.explored : [] };
-  } catch {
-    return defaultState();
-  }
+  const primary = parseStored(localStorage.getItem(STORAGE_KEY));
+  const backup = parseStored(localStorage.getItem(BACKUP_KEY));
+  return migrateState(primary || backup || defaultState());
 }
 
 let study = loadState();
@@ -27,10 +72,24 @@ let productionIndex = 0;
 let currentTone = 1;
 let toneAnswered = false;
 
-const todayKey = () => new Date().toISOString().slice(0, 10);
+const todayKey = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / DAY);
 
+function ensureDailyNewCounter() {
+  const today = todayKey();
+  if (study.dailyNew.date !== today) study.dailyNew = { date: today, count: 0 };
+}
+
 function saveState() {
+  const existing = localStorage.getItem(STORAGE_KEY);
+  if (existing) localStorage.setItem(BACKUP_KEY, existing);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(study));
   renderProgress();
   renderToday();
@@ -48,29 +107,58 @@ function touchStudyDay() {
 }
 
 function cardState(index) {
-  return study.cards[index] || { reps: 0, interval: 0, ease: 2.5, due: 0, lapses: 0, last: null };
+  return study.cards[cardId(index)] || defaultCard();
+}
+
+function hasSeen(index) {
+  return Boolean(study.cards[cardId(index)]);
 }
 
 function dueTimestamp(card) {
   return Number(card.due || 0);
 }
 
-function reorderQueue() {
+function buildStudyQueue() {
+  ensureDailyNewCounter();
   const now = Date.now();
-  queue.sort((a, b) => {
-    const ca = cardState(a), cb = cardState(b);
-    const aDue = dueTimestamp(ca) <= now ? 0 : 1;
-    const bDue = dueTimestamp(cb) <= now ? 0 : 1;
-    if (aDue !== bDue) return aDue - bDue;
-    if (ca.reps !== cb.reps) return ca.reps - cb.reps;
-    return dueTimestamp(ca) - dueTimestamp(cb);
-  });
+  const due = core.map((_, i) => i)
+    .filter(i => hasSeen(i) && dueTimestamp(cardState(i)) <= now)
+    .sort((a, b) => dueTimestamp(cardState(a)) - dueTimestamp(cardState(b)))
+    .slice(0, DAILY_REVIEW_LIMIT);
+
+  const remainingNew = Math.max(0, DAILY_NEW_LIMIT - study.dailyNew.count);
+  const unseen = core.map((_, i) => i).filter(i => !hasSeen(i)).slice(0, remainingNew);
+
+  const mixed = [];
+  let r = 0, n = 0;
+  while (r < due.length || n < unseen.length) {
+    for (let k = 0; k < 2 && r < due.length; k += 1) mixed.push(due[r++]);
+    if (n < unseen.length) mixed.push(unseen[n++]);
+  }
+
+  // Keep the Learn screen useful even after today's scheduled work is complete.
+  if (!mixed.length) {
+    const nextUnseen = core.findIndex((_, i) => !hasSeen(i));
+    if (nextUnseen >= 0) mixed.push(nextUnseen);
+    else {
+      const soonest = core.map((_, i) => i).sort((a, b) => dueTimestamp(cardState(a)) - dueTimestamp(cardState(b)))[0];
+      if (Number.isInteger(soonest)) mixed.push(soonest);
+    }
+  }
+
+  queue.splice(0, queue.length, ...mixed);
   renderCharacter();
   applyPinyinMode();
 }
 
+function reorderQueue() {
+  buildStudyQueue();
+}
+
 function scheduleCurrent(rating) {
   const index = queue[0];
+  if (!Number.isInteger(index)) return;
+  const wasNew = !hasSeen(index);
   const prev = cardState(index);
   const next = { ...prev };
   const now = Date.now();
@@ -98,15 +186,22 @@ function scheduleCurrent(rating) {
   }
 
   next.last = now;
-  study.cards[index] = next;
+  study.cards[cardId(index)] = next;
+  if (wasNew) {
+    ensureDailyNewCounter();
+    study.dailyNew.count += 1;
+  }
   touchStudyDay();
+
+  if (rating === 'again') needsReview += 1;
+  else mastered += 1;
+  updateStats();
   saveState();
-  advance(rating === 'again');
-  reorderQueue();
+  buildStudyQueue();
 }
 
 function matureCount() {
-  return Object.values(study.cards).filter(card => card.reps >= 3 && card.interval >= 7).length;
+  return Object.entries(study.cards).filter(([key, card]) => key.startsWith('char:') && card.reps >= 3 && card.interval >= 7).length;
 }
 
 function applyPinyinMode() {
@@ -117,8 +212,7 @@ function applyPinyinMode() {
     pinyin.classList.remove('soft-hidden');
     return;
   }
-  const card = cardState(queue[0]);
-  pinyin.classList.toggle('soft-hidden', card.reps >= 2);
+  pinyin.classList.toggle('soft-hidden', cardState(queue[0]).reps >= 2);
 }
 
 function activateView(name) {
@@ -131,14 +225,27 @@ function activateView(name) {
 }
 
 function renderToday() {
+  ensureDailyNewCounter();
   const now = Date.now();
-  const due = core.filter((_, i) => study.cards[i] && dueTimestamp(cardState(i)) <= now).length;
-  const unseen = core.filter((_, i) => !study.cards[i]).length;
-  const newToday = Math.min(8, unseen);
-  const reviewToday = Math.min(24, due);
-  document.getElementById('todaySummary').textContent = `${reviewToday} reviews + ${newToday} new items · about 20 minutes`;
+  const due = core.filter((_, i) => hasSeen(i) && dueTimestamp(cardState(i)) <= now).length;
+  const unseen = core.filter((_, i) => !hasSeen(i)).length;
+  const newToday = Math.min(Math.max(0, DAILY_NEW_LIMIT - study.dailyNew.count), unseen);
+  const reviewToday = Math.min(DAILY_REVIEW_LIMIT, due);
+  const summary = document.getElementById('todaySummary');
+  const streakLabel = document.getElementById('streakLabel');
+  const startButton = document.getElementById('startDaily');
+  if (!summary || !streakLabel) return;
+
+  if (reviewToday === 0 && newToday === 0) {
+    summary.textContent = '✓ Scheduled cards complete for today';
+    if (startButton) startButton.textContent = 'Practice anyway →';
+  } else {
+    const estimatedMinutes = Math.max(5, Math.min(25, Math.round(reviewToday * 0.45 + newToday * 1.1 + 3)));
+    summary.textContent = `${reviewToday} review${reviewToday === 1 ? '' : 's'} + ${newToday} new item${newToday === 1 ? '' : 's'} · ~${estimatedMinutes} minutes`;
+    if (startButton) startButton.textContent = 'Start today’s lesson →';
+  }
   const streak = study.streak.count;
-  document.getElementById('streakLabel').textContent = streak ? `${streak}-day study streak · listening + tones included` : 'Start today to build your streak.';
+  streakLabel.textContent = streak ? `${streak}-day study streak · reviews + new material` : 'Start today to build your streak.';
 }
 
 function shuffled(array) {
@@ -272,17 +379,16 @@ function renderProgress() {
   document.getElementById('learningModeText').textContent = mastery < 20 ? 'Foundation mode: keep pinyin visible when needed, but always try the character first.' : mastery < 60 ? 'Transition mode: turn pinyin off for familiar cards and rely on characters + audio.' : 'Chinese-first mode: keep pinyin hidden most of the time and use it only to check uncertain pronunciation.';
 }
 
-// Replace the original binary review buttons with persistent four-grade SRS.
 document.getElementById('legacyRatings').hidden = true;
 document.querySelectorAll('.rating').forEach(button => button.addEventListener('click', () => scheduleCurrent(button.dataset.rating)));
 document.getElementById('autoPinyin').addEventListener('change', applyPinyinMode);
-document.getElementById('speakExample').addEventListener('click', () => speak(core[queue[0]][3]));
+document.getElementById('speakExample').addEventListener('click', () => queue.length && speak(core[queue[0]][3]));
 
 document.getElementById('startDaily').addEventListener('click', () => {
   study.dailyStarts += 1;
   touchStudyDay();
   saveState();
-  reorderQueue();
+  buildStudyQueue();
   activateView('learn');
   document.getElementById('learn').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
@@ -290,7 +396,9 @@ document.getElementById('startDaily').addEventListener('click', () => {
 document.getElementById('playListening').addEventListener('click', () => speak(sentences[listeningIndex][0]));
 document.getElementById('nextListening').addEventListener('click', renderListening);
 document.getElementById('revealProduction').addEventListener('click', () => {
-  document.getElementById('productionAnswer').hidden = false;
+  const answer = document.getElementById('productionAnswer');
+  if (!answer.hidden) return;
+  answer.hidden = false;
   study.production += 1;
   touchStudyDay();
   document.getElementById('productionScore').textContent = `${study.production} practiced`;
@@ -329,11 +437,9 @@ document.getElementById('exportProgress').addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// Refresh adaptive pinyin after the original app changes cards.
-['againButton', 'knowButton'].forEach(id => document.getElementById(id)?.addEventListener('click', applyPinyinMode));
-
-reorderQueue();
-renderToday();
+// Persist the migrated stable-ID schema immediately. The old raw state is retained as a backup first.
+saveState();
+buildStudyQueue();
 renderListening();
 renderProduction();
 renderPacks();
