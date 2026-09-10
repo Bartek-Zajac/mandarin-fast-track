@@ -13,8 +13,10 @@ A lightweight Mandarin learning app focused on useful Chinese: high-frequency ch
 - Persistent browser-based spaced repetition with **Again / Hard / Good / Easy** scheduling
 - Daily queue mixing due reviews with up to eight new cards
 - Practical sentence, listening, production, tone and situational drills
+- Stories tab with language facts, mnemonics, idioms and character insights
 - Adaptive pinyin and progress dashboard
 - Exportable local progress JSON
+- Browser-native Mandarin pronunciation using the device's speech synthesis voice
 
 ## Progress storage
 
@@ -34,9 +36,13 @@ This distinction matters: all 1,000 cards now receive learner-oriented enrichmen
 
 The generated layer and editorial layers are separate, so rebuilding the frequency dataset cannot overwrite learner-focused improvements.
 
+## Pronunciation
+
+The app uses the browser's built-in `SpeechSynthesis` API with Mandarin (`zh-CN`). On macOS this means the installed/system Chinese voice is used. No external text-to-speech service or speech API is required by the app.
+
 ## Run and deploy
 
-The frontend has no build step. Serve the repository with any static HTTP server. On Vercel, `api/speech.js` is deployed as a Function. Pronunciation uses the configured cloud TTS when available and automatically falls back to the browser Mandarin voice when it is not.
+The frontend has no build step. Serve the repository with any static HTTP server, or deploy it as a static project on Vercel.
 
 ## Data attribution
 
